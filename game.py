@@ -237,6 +237,40 @@ class BaseballGame:
         for team in self.state["home_away"]:
             self.display.print_batting_order(team, False)
 
+        choice = ""
+
+        print(f"\n-----Make adjustments to the {user_team} lineup if needed-----\n")
+        while choice != "5":
+            choice = input(
+                "1 - Change batting order\n"
+                "2 - Substitute a player\n"
+                "3 - Defensive switch\n"
+                "4 - View batting order\n"
+                "5 - Start game\n"
+            )
+
+            if choice == "1":
+                player1 = int(input(f"{user_team} - Enter the lineup position of the first player to swap: "))
+                player_2 = int(input(f"{user_team} - Enter the lineup position of the second player to swap: "))
+
+                for team in self.state["home_away"]:
+                    self.manager.move_batting_order(user_team, player1, player_2)
+
+            elif choice == "2":
+                # print bench
+                self.display.print_batting_order(user_team, True)
+                player1 = int(input(f"\n{user_team} - Enter the lineup position of the first player to swap: "))
+                player_2 = int(input(f"{user_team} - Enter the bench position of the second player to swap: "))
+
+                self.manager.substitute_player(user_team, player1, player_2, True)    
+            elif choice == "3":
+                self.manager.defensive_switch(user_team, player1, player_2)
+            elif choice == "4":
+                self.display.print_batting_order(user_team, False)
+            else:
+                print("Starting game...\n")
+                break
+
         # Plays extra innings after 9 full innings while game is still tied
         while self.state["inning"] <= 9 or self.state["score"][away_team] == self.state["score"][home_team]:
             
