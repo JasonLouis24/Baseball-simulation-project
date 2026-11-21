@@ -12,16 +12,16 @@ class TeamManager:
         self.game = game
         self.display = StatsDisplay(self.game)
 
-    def substitute_player(self, team, player_out_idx, player_in_idx):
+    def substitute_player(self, team, player_out_idx, player_in_idx, beginning_game=False):
         """
-        Takes a player from the bench and inserts them into the lineup (occupyed by the outgoing player)
-        Forbids a player already taken out from re-entering
-        The bench player also takes over the outgoing player's position to prevent a crash
+        Takes a player from the bench and inserts them into the lineup (occupied by the outgoing player).
+        During normal play, forbids a player already taken out from re-entering.
+        At the beginning of the game (beginning_game=True), players can be swapped freely without locking them out.
         """
         outgoing_player = self.game.lineups[team][player_out_idx - 1]
 
-        # check to see if a player was alrerady taken out
-        if outgoing_player[0] in self.game.removed_players[team]:
+        # Only block re-entry after the game has started
+        if not beginning_game and outgoing_player[0] in self.game.removed_players[team]:
             print(f"\n{outgoing_player[0]} has already played and cannot re-enter!\n")
             return
 
@@ -33,13 +33,25 @@ class TeamManager:
 
         incoming_player[1] = out_pos
 
-        self.game.removed_players[team].append(player_out)
+        if not beginning_game:
+            self.game.removed_players[team].append(player_out)
 
-        # Swaps players into different dictionaries
         self.game.lineups[team].insert(player_out_idx - 1, incoming_player)
         self.game.bench[team].append(outgoing_player)
 
         print(f"\n{player_out} has been subbed out for {player_in}, now playing {out_pos}.\n")
+
+    def move_batting_order(self, team, player1_idx, player_2_idx):
+        # swaps the position of two selected players in the batting order
+        player1 = self.game.lineups[team][player1_idx - 1]
+        player2 = self.game.lineups[team][player_2_idx - 1]
+
+        player1_name, pos1 = player1
+        player2_name, pos2 = player2
+
+        self.game.lineups[team][player1_idx - 1], self.game.lineups[team][player_2_idx - 1] = player2, player1
+
+        print(f"\nBatting order adjustment: {pos1} {player1_name} is now batting in position {player_2_idx}. {pos2} {player2_name} is now batting in position {player1_idx}.\n")
 
     def defensive_switch(self, team, player1_idx, player2_idx):
         # swaps the position of two selected players
