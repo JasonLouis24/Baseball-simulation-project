@@ -1,15 +1,26 @@
-"""
-Roster management (substitutions, defensive switches) and in-game menu.
-"""
-
+from stats import StatsDisplay
 
 class TeamManager:
+    """
+    This class defines the functions pertaining to roster management (i.e. substitutions, defensive switches) and in-game menu to access different functions. 
+
+    Attributes:
+
+    game: The game class
+    """ 
     def __init__(self, game):
         self.game = game
+        self.display = StatsDisplay(self.game)
 
     def substitute_player(self, team, player_out_idx, player_in_idx):
+        """
+        Takes a player from the bench and inserts them into the lineup (occupyed by the outgoing player)
+        Forbids a player already taken out from re-entering
+        The bench player also takes over the outgoing player's position to prevent a crash
+        """
         outgoing_player = self.game.lineups[team][player_out_idx - 1]
 
+        # check to see if a player was alrerady taken out
         if outgoing_player[0] in self.game.removed_players[team]:
             print(f"\n{outgoing_player[0]} has already played and cannot re-enter!\n")
             return
@@ -24,12 +35,14 @@ class TeamManager:
 
         self.game.removed_players[team].append(player_out)
 
+        # Swaps players into different dictionaries
         self.game.lineups[team].insert(player_out_idx - 1, incoming_player)
         self.game.bench[team].append(outgoing_player)
 
         print(f"\n{player_out} has been subbed out for {player_in}, now playing {out_pos}.\n")
 
     def defensive_switch(self, team, player1_idx, player2_idx):
+        # swaps the position of two selected players
         player1 = self.game.lineups[team][player1_idx - 1]
         player2 = self.game.lineups[team][player2_idx - 1]
 
@@ -41,43 +54,45 @@ class TeamManager:
         print(f"\nDefensive adjustment: {pos1} {player1_name} is now playing {pos2}. {pos2} {player2_name} is now playing {pos1}.\n")
 
     def menu(self, user_team):
+        # Pulls up a list of options for a user to interact with
         option = 0
 
         while option != 5:
-            option = int(input(
+            option = input(
                 "\nEnter an action:\n"
                 "1 - View box score\n"
                 "2 - Substitute a player\n"
                 "3 - Defensive switch\n"
                 "4 - View bases\n"
                 "5 - Exit\n"
-            ))
+            )
 
-            if option == 1:
-                self.game.display.view_box_score(False)
+            if option == "1":
+                self.display.view_box_score(False)
 
-            elif option == 2:
-                self.game.display.print_batting_order(user_team, False)
-                self.game.display.print_batting_order(user_team, True)
+            elif option == "2":
+                self.display.print_batting_order(user_team, False)
+                self.display.print_batting_order(user_team, True)
 
                 player_out_idx = int(input("Enter lineup position of player to remove: "))
                 player_in_idx = int(input("Enter bench position of incoming player: "))
 
                 self.substitute_player(user_team, player_out_idx, player_in_idx)
 
-            elif option == 3:
-                self.game.display.print_batting_order(user_team, False)
+            elif option == "3":
+                self.display.print_batting_order(user_team, False)
 
                 player1_idx = int(input("Enter first player's lineup position: "))
                 player2_idx = int(input("Enter second player's lineup position: "))
 
                 self.defensive_switch(user_team, player1_idx, player2_idx)
 
-            elif option == 4:
+            elif option == "4":
                 self.game.display.view_bases()
 
-            elif option == 5:
+            elif option == "5":
                 print("\nReturning to game...\n")
+                break
 
             else:
                 print("\nInvalid option.\n")
