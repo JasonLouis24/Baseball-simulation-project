@@ -1,14 +1,24 @@
-"""
-Pitching mechanics, count progression, and stolen base attempts.
-"""
 import random
 
 
 class PitchingController:
+    """
+    This class groups the pitch-by-pitch related functions
+    i.e. pitch result, type of pitch thrown, and a steal attempt on a given pitch
+
+    Attributes:
+
+    game: The game class
+    """
     def __init__(self, game):
         self.game = game
 
     def pitch(self, team, cpu_team):
+        """
+        The pitch uses weights to determine the result of a pitch, and the information is returned
+        If the team the user is managing is pitching, they can throw a fastball or offspeed pitch, which changes the weights
+        When the cpu is pitching, a pitch is randomly selected
+        """
         weights = []
 
         if team == cpu_team:
@@ -44,9 +54,15 @@ class PitchingController:
         return random.choices(pitch_outcomes, weights)[0]
 
     def process_pitch_result(self, result, balls, strikes):
+        """
+        This method takes in the result of the pitch to determine the count and other situations
+        The at_bat_result is passed into the in_play function to determine the end result
+        Incrementing balls and strikes calculated walks or strikeouts in the game file
+        """
         at_bat_result = ""
+        b1, b2, b3 = self.game.state["bases"]
 
-        if result == "ball":
+        if result == "ball" or (result == "wild pitch" and not (b1 or b2 or b3)):
             balls += 1
             print(f"The pitch is a ball. Count: {balls}-{strikes}")
         elif result == "foul":
@@ -67,12 +83,17 @@ class PitchingController:
         return balls, strikes, at_bat_result
 
     def check_steal_attempt(self, team, cpu_team):
+        """
+        If a runner is on 1st or second base, this function will check on every pitch if the runner goes or not
+        When the user is batting, they can control if they send the runner or not (but there is still an element of randomness)
+        It handles runner advancement and stat tracking if a steal is attempted
+        """
         b1, b2, b3 = self.game.state["bases"]
 
         factor = ""
         if team != cpu_team:
-            if b1 or b2 or b3:
-                factor = input("Call for steal? (1 - yes, 2 - no): ")
+            if b1 or b2:
+                factor = input("\nCall for steal? (1 - yes, 2 - no): ")
 
             odds_2b = 0.0
             odds_3b = 0.0
