@@ -1,10 +1,17 @@
-"""
-Balls in play, hit resolution, outs, double plays, and defensive errors.
-"""
 import random
 
 
 class FieldingController:
+    """
+    This class determines the result of a ball hit in play
+
+    Handles balls in play outcomes, hit resolution, basic outs, double plays, and errors.
+
+    Attributes: 
+
+    game: The game class needed for the flow and calculation of the result
+    
+    """
     def __init__(self, game):
         self.game = game
 
@@ -29,11 +36,14 @@ class FieldingController:
         return in_play_result, outcome
 
     def get_defender_name(self, target_position):
+        # Helper function that returns the name and position of a requested fielder
         for name, pos in self.game.lineups[self.game.state["fielding_team"]]:
             if pos == target_position:
                 return name, pos
 
     def get_fielder_and_location(self, batting_team, in_play_result, outcome):
+        # randomly assigns a fielding position and name, used in the result for a ball in play
+
         home_team, away_team = self.game.state["home_away"]
         self.game.state["fielding_team"] = home_team if batting_team == away_team else away_team
 
@@ -59,6 +69,11 @@ class FieldingController:
         return fielder_position, fielder_name
 
     def in_play(self, team):
+    
+        """ 
+        Handles logic related to errors and hits, 
+        In those areas, it tracks bases, calculates runner advancement, updates stats and prints result
+        """
         in_play_result, outcome = self.get_in_play_result()
 
         batter = self.game.batter_index[team]
@@ -68,19 +83,22 @@ class FieldingController:
             team, in_play_result, outcome
         )
 
+        # Calculates if an error occurs on a given ball in play
+
         error_type, error_chance, target_pos = self.get_error_profile(pos, outcome)
 
         if random.random() < error_chance:
             self.handle_error(team, player, outcome, pos, fielder_name, error_type, target_pos)
             return
 
+        # Specifically tracks different cases of an out using specialized functions
         if in_play_result == "out":
             if outcome == "ground ball":
                 self.handle_ground_ball_dp(team, player, in_play_result, outcome)
             elif outcome == "line drive":
                 self.handle_lineout_gp(team, player, in_play_result, outcome)
             elif outcome == "fly ball":
-                self.handle_fly_ball_action(team, player, in_play_result, outcome)
+                self.handle_fly_ball(team, player, in_play_result, outcome)
             else:
                 self.handle_popup(team, player, in_play_result, outcome)
             return in_play_result
@@ -193,6 +211,11 @@ class FieldingController:
         return in_play_result
 
     def handle_ground_ball_dp(self, team, batter, in_play_result, outcome):
+        """
+        Tracks Double play, fielder's choice, and routine groundout oppurtunities
+        Uses specialized fielder positing to make logic model real world situations
+        
+        """
         pos, fielder_name = self.get_fielder_and_location(team, in_play_result, outcome)
         b1, b2, b3 = self.game.state["bases"]
         first_b_name, first_b_pos = self.get_defender_name("1B")
@@ -207,6 +230,7 @@ class FieldingController:
 
             chosen_dp = "three_fielders"
 
+            # A double play with only two fielders has a large chance of occuring if the 1B is involved
             if can_two_fielders and can_three_fielders:
                 two_fielder_chance = 0.25 if pos == "1B" else 0.10
 
@@ -229,6 +253,7 @@ class FieldingController:
             run_message = f"{b3} scores. " if run_scored else ""
             advance_message = f"{b2} to third. " if b2 else ""
 
+            # Establishes the middle part of the message based on the number and name/position of the fielders involved
             if chosen_dp == "two_fielders":
                 if pos == "1B":
                     ss_name, ss_pos = self.get_defender_name("SS")
@@ -242,7 +267,8 @@ class FieldingController:
 
             print(f"{batter} grounds into a double play, {dp_comment}{run_message}{advance_message}{b1} out at second. {self.game.state['outs']} outs.")
 
-        # 2. Fielder's choice logic 
+        # 2. Fielder's choice logic
+        # Requires at least a runner on first and less than two outs (two outs will be a routine ground ball)
         elif self.game.state["outs"] < 2 and b1:
             self.game.state["outs"] += 1
             self.game.display.record_stat(batter, "AB")
@@ -251,30 +277,45 @@ class FieldingController:
             if b1 and b2 and b3:
                 c_name, c_pos = self.get_defender_name("C")
                 self.game.state["bases"] = [batter, b1, b2]
-                print(f"{batter} reaches on a fielder's choice, {pos} {fielder_name} to {c_pos} {c_name}. {b3} out at home. {self.game.state['outs']} out(s).")
+                print(
+                    f"{batter} reaches on a fielder's choice, {pos} {fielder_name} to {c_pos} {c_name}. "
+                    f"{b3} out at home. {self.game.state['outs']} out(s)."
+                )
 
-            # Runner on 1st and 2nd: Lead runner is b2, throw goes to 3rd to force them out
+            # Runners on 1st and 2nd: Lead runner is b2, throw goes to 3rd to force them out
             elif b1 and b2 and not b3:
                 covering_name, covering_pos = self.get_defender_name("3B")
                 self.game.state["bases"] = [batter, b1, None]
-                print(f"{batter} reaches on a fielder's choice, {pos} {fielder_name} to {covering_pos} {covering_name}. {b2} out at third. {self.game.state['outs']} out(s).")
+                print(
+                    f"{batter} reaches on a fielder's choice, {pos} {fielder_name} to {covering_pos} {covering_name}. "
+                    f"{b2} out at third. {self.game.state['outs']} out(s)."
+                )
 
-            # Runner on 1st only: Lead runner is b1, throw goes to 2nd
-            else:
+            # Runners on 1st and 3rd: Throw goes to 2nd to force b1; b3 scores on the play
+            elif b1 and b3 and not b2:
                 covering_pos = "2B" if pos in ["3B", "SS", "P", "C"] else "SS"
                 covering_name, covering_pos = self.get_defender_name(covering_pos)
 
-                run_scored = False
-                if b3 and self.game.state["outs"] < 3:
-                    run_scored = True
-                    self.game.state["score"][team] += 1
-                    self.game.display.record_stat(batter, "RBI")
-                    self.game.display.print_score()
+                self.game.state["score"][team] += 1
+                self.game.display.record_stat(batter, "RBI")
+                self.game.display.print_score()
+                self.game.state["bases"] = [batter, None, None]
 
-                self.game.state["bases"] = [batter, None, b2]
-                run_message = f"{b3} scores." if run_scored else ""
+                print(
+                    f"{batter} reaches on a fielder's choice, {pos} {fielder_name} to {covering_pos} {covering_name}. "
+                    f"{b3} scores. {b1} out at second. {self.game.state['outs']} out(s)."
+                )
 
-                print(f"{batter} reaches on a fielder's choice, {pos} {fielder_name} to {covering_pos} {covering_name}. {run_message} {b1} out at second. {self.game.state['outs']} out(s).")
+            # Runner on 1st only: Lead runner is b1, throw goes to 2nd to force them out
+            else:
+                covering_pos = "2B" if pos in ["3B", "SS", "P", "C"] else "SS"
+                covering_name, covering_pos = self.get_defender_name(covering_pos)
+                self.game.state["bases"] = [batter, None, None]
+
+                print(
+                    f"{batter} reaches on a fielder's choice, {pos} {fielder_name} to {covering_pos} {covering_name}. "
+                    f"{b1} out at second. {self.game.state['outs']} out(s)."
+                )
 
         # 3. Routine groundout
         else:
@@ -306,6 +347,12 @@ class FieldingController:
                 print(f"{out_message} {self.game.state['outs']} outs.")
 
     def handle_lineout_gp(self, team, batter, in_play_result, outcome):
+        """
+        Handles the result of a lineout and the stipulations of a lineout double play
+        Tracks to see if the double play is unassisted or assisted
+        Some fielders can only throw to certain bases to get an out in time, this checks to see what throws are possible
+        
+        """
         pos, fielder_name = self.get_fielder_and_location(team, in_play_result, outcome)
 
         fielders_index = {
@@ -315,6 +362,7 @@ class FieldingController:
             "3B": 2
         }
 
+        # Sets up the bases for potential throw targets for a DP
         valid_throw_targets = {
             "LF": [2],
             "CF": [2],
@@ -372,7 +420,7 @@ class FieldingController:
             target_base_idx = random.choice(possible_targets)
             base_str = base_names[target_base_idx]
 
-            # Find out who is covering the base
+            # Find out which fielder is is covering the base
             if target_base_idx == 0:
                 covering_pos = "1B"
             elif target_base_idx == 1:
@@ -397,7 +445,9 @@ class FieldingController:
             self.game.display.record_stat(batter, "AB")
             print(f"{batter} lines out to {pos} {fielder_name}. {self.game.state['outs']} outs.")
 
-    def handle_fly_ball_action(self, team, batter, in_play_result, outcome):
+    def handle_fly_ball(self, team, batter, in_play_result, outcome):
+        # Standard logic for sacrifice flies and regular fly outs
+
         pos, fielder_name = self.get_fielder_and_location(team, in_play_result, outcome)
         self.game.state["outs"] += 1  
 
@@ -406,6 +456,7 @@ class FieldingController:
 
         messages = [f"{batter} flies out to {pos} {fielder_name}."]
 
+        # Determines if run scores from third or not
         if b3 is not None and self.game.state["outs"] < 3:
             if random.random() < 0.9:
                 messages.append(f"{b3} tags and scores.")
@@ -418,6 +469,7 @@ class FieldingController:
                 self.game.state["outs"] += 1
                 b3 = None
 
+        # Determines if runner takes third from second
         if b2 is not None and b3 is None and self.game.state["outs"] < 3:
             if random.random() < 0.8:
                 messages.append(f"{b2} tags up and takes third.")
@@ -438,11 +490,18 @@ class FieldingController:
             print(msg)
 
     def handle_popup(self, team, batter, in_play_result, outcome):
+        # Records out on a pop up and print information
+
         pos, fielder_name = self.get_fielder_and_location(team, in_play_result, outcome)
         self.game.state["outs"] += 1
         print(f"{batter} pops out to {pos} {fielder_name}. {self.game.state['outs']} outs.")
 
     def get_error_profile(self, pos, outcome):
+        """
+        Determines likelihood of an error made by each position, classifies errors into fielding and throwing errors
+        An error made by an outfielder can yield more bases on average
+        Returns the type, chance, and who recieves the throw if throwing error
+        """
         outfield = ["LF", "CF", "RF"]
 
         # 1. Ground balls
@@ -482,6 +541,8 @@ class FieldingController:
             return "fielding", 0.005, None
 
     def handle_error(self, team, batter, outcome, pos, fielder_name, error_type, target_pos):
+        # prints the error message based on the error profile, increments the error statistic
+
         self.game.display.record_stat(fielder_name, "E")
 
         # Outfielders can give up 1-3 bases; infielders 1-2 bases
@@ -502,6 +563,10 @@ class FieldingController:
         self.advance_on_error(team, batter, bases_gained)
 
     def advance_on_error(self, team, batter, bases_gained):
+        """
+        Defines the core logic for how runners advance on an error 
+        Advances and scores runners based on the number of bases gained
+        """
         b1, b2, b3 = self.game.state["bases"]
         self.game.state["bases"] = [None, None, None]
 
