@@ -259,6 +259,7 @@ class BaseballGame:
             elif choice == "2":
                 # print bench
                 self.display.print_batting_order(user_team, True)
+
                 player1 = int(input(f"\n{user_team} - Enter the lineup position of the first player to swap: "))
                 player_2 = int(input(f"{user_team} - Enter the bench position of the second player to swap: "))
 
@@ -267,7 +268,8 @@ class BaseballGame:
                 self.manager.defensive_switch(user_team, player1, player_2)
             elif choice == "4":
                 self.display.print_batting_order(user_team, False)
-            else:
+                self.display.print_batting_order(user_team, True)
+            elif choice == "5":
                 print("Starting game...\n")
                 break
 
