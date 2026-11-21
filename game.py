@@ -9,6 +9,26 @@ from management import TeamManager
 
 
 class BaseballGame:
+    """
+    This class establishes some of the crucial elements to the sim's function and directs game flow
+
+    Establishes the critical elements almost every other file uses, including the state dict and rosters
+    Also includes the game flow related functions, including ones to play an at bat, inning, game and series
+
+    Attributes:
+    
+    state: Houses information needed for most operations
+    lineups: Sets up the batting order for each team (pre-determined for now)
+    bench: Sets up the bench players for each team 
+    removed_players: Empty dict for players when they get subbed out of the game
+    stats: Creates a dict that assigns stat variables to each 
+    batter_index: Determines the position in the batting order
+    display: StatDisplay class
+    pitching: PitchingController class
+    fielding: FieldingController class
+    manager: TeamManager class
+
+    """
     def __init__(self, user_team, cpu_team):
         self.state = {
             "game": 1,
@@ -70,6 +90,13 @@ class BaseballGame:
         self.manager = TeamManager(self)
 
     def at_bat(self, team, cpu_team, user_team):
+        """
+        A main function that brings many functions from other classes together
+        Tracks the number of balls and strikes, hit by pitch chance, wild pitch chance and steal chance
+        Determines walk, strikeout if balls = 4 and strikes = 4, triggers in_play function
+        Also prompts user if they want to bring up the main menu
+        
+        """
         b1, b2, b3 = self.state["bases"]
 
         batter = self.batter_index[team]
@@ -96,6 +123,7 @@ class BaseballGame:
         strikes = 0
 
         while balls < 4 and strikes < 3:
+            # checks to see if a runner will steal before the pitch
             self.pitching.check_steal_attempt(team, cpu_team)
 
             if self.state["outs"] >= 3:
@@ -103,6 +131,7 @@ class BaseballGame:
 
             result = self.pitching.pitch(team, cpu_team)
 
+            # unpacks the result of the pitch thrown
             balls, strikes, at_bat_result = self.pitching.process_pitch_result(result, balls, strikes)
 
             if at_bat_result == "ball in play":
@@ -130,7 +159,7 @@ class BaseballGame:
                 self.state["bases"][0] = player
                 break
 
-            if result == "wild pitch" and b1 or b2 or b3:
+            if result == "wild pitch" and (b1 or b2 or b3):
                 print("Wild pitch!")
 
                 if b3:
@@ -178,9 +207,11 @@ class BaseballGame:
                 print(f"{player} is out on strikes. {self.state['outs']} outs.")
                 break
 
+        # will always loop through the numbers 1-9 to return the correct batter due up
         self.batter_index[team] = (batter + 1) % 9
 
     def play_half_inning(self, team, cpu_team, user_team):
+        #
         self.state["bases"] = [None, None, None]
         self.state["outs"] = 0
 
@@ -189,19 +220,27 @@ class BaseballGame:
         while self.state["outs"] < 3:
             self.at_bat(team, cpu_team, user_team)
 
+            # Checks to see if they game ends after the top of the inning given the home team was winning
             if not self.state["top_of_inning"] and self.state["inning"] >= 9:
                 if self.state["score"][home_team] > self.state["score"][away_team]:
                     break
 
     def play_full_game(self, cpu_team, user_team):
+        """
+        Builds on the play_half_inning function
+        Alternates between home and away batting, establishes checks to trigger extra inning rules and conditions for game ending
+        """
         away_team = self.state["home_away"][1]
         home_team = self.state["home_away"][0]
 
+        # prints batting orders at the beginning of the game
         for team in self.state["home_away"]:
             self.display.print_batting_order(team, False)
 
+        # Plays extra innings after 9 full innings while game is still tied
         while self.state["inning"] <= 9 or self.state["score"][away_team] == self.state["score"][home_team]:
-            # Top of the inning (Away team bats)
+            
+            # Away team bats in the top of the inning
             self.state["top_of_inning"] = True
             self.display.print_inning_description()
             self.play_half_inning(away_team, cpu_team, user_team)
@@ -210,7 +249,7 @@ class BaseballGame:
                 if self.state["score"][home_team] > self.state["score"][away_team]:
                     break
 
-            # Bottom of the inning (Home team bats)
+            # Home team bats in the bottom of the inning
             self.state["top_of_inning"] = False
             self.display.print_inning_description()
             self.play_half_inning(home_team, cpu_team, user_team)
@@ -218,9 +257,14 @@ class BaseballGame:
             self.state["inning"] += 1
 
         print("\n----- GAME OVER -----")
-        print(f"Final Score -> {home_team}: {self.state['score'][home_team]}, {away_team}: {self.state['score'][away_team]}")
+        print(f"Final Score: {home_team}: {self.state['score'][home_team]}, {away_team}: {self.state['score'][away_team]}")
 
     def play_full_series(self, cpu_team, user_team):
+        """
+        Plays games until a team reaches 4 wins
+        Sets up MLB's 2-3-2 rule where the best team plays at home first, then the away team is home for 3 games, followed by the home team being back at home
+        Prints the series stadnings at the end of each game
+        """
         wins = {
             "MIL": 0,
             "TB": 0
@@ -229,6 +273,7 @@ class BaseballGame:
         total_gp = 0
 
         while wins["MIL"] != 4 and wins["TB"] != 4:
+            # clears game variables at the beginning of each game
             self.state["inning"] = 1
             self.state["outs"] = 0
             self.state["bases"] = [None, None, None]
@@ -237,6 +282,9 @@ class BaseballGame:
             away_team = self.state["home_away"][1]
             home_team = self.state["home_away"][0]
 
+            print(f"\n\n----- World Series Game {total_gp + 1}-----\n")
+
+            # Plays the next game, Resets score and stat variables
             self.play_full_game(cpu_team, user_team)
             if self.state["score"][home_team] > self.state["score"][away_team]:
                 wins[home_team] += 1
@@ -254,6 +302,7 @@ class BaseballGame:
 
             total_gp += 1
 
+            # Logic for home field advantage
             if total_gp == 2:
                 self.state["home_away"] = ["TB", "MIL"]
 
@@ -264,3 +313,8 @@ class BaseballGame:
             print("\n------------\nTHE MILUAKEE BREWERS HAVE WON THE WORLD SERIES!\n---------")
         else:
             print("\n------------\nTHE TAMPA BAY RAYS HAVE WON THE WORLD SERIES!\n---------")
+
+        self.display.view_box_score(True)
+
+        winning_team = "MIL" if wins["MIL"] > wins["TB"] else "TB"
+        self.display.series_mvp(winning_team)
